@@ -1,0 +1,9 @@
+node_modules/
+*.db
+*.db-wal
+*.db-shm
+local.db
+client/dist/
+server/festacai.db
+.vercel
+.env

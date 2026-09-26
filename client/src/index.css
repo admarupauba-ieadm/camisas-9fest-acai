@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #3A0F1E;
+  color: #F2D9A1;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #3A0F1E;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #7B2C8E;
+  border-radius: 4px;
+}
+
+select {
+  color: #333;
+}
+
+.admin-page input, .admin-page select {
+  color: #333;
+}
