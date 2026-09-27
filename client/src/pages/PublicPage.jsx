@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { getPreco, enviarPedidos, consultarPedidos, verificarNome } from '../api';
+import { getPreco, enviarPedidos, consultarPedidos, verificarNome, buscarNomes } from '../api';
 
 export default function PublicPage() {
   const [preco, setPreco] = useState(35);
@@ -15,9 +15,20 @@ export default function PublicPage() {
   const [resultadoConsulta, setResultadoConsulta] = useState(null);
   const [buscando, setBuscando] = useState(false);
   const [erroConsulta, setErroConsulta] = useState('');
+  const [sugestoes, setSugestoes] = useState([]);
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
+  const debounceRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     getPreco().then(data => { if (data && data.preco != null) setPreco(data.preco); }).catch(() => {});
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setMostrarSugestoes(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   function addItem() {
@@ -84,10 +95,43 @@ export default function PublicPage() {
     setErro('');
   }
 
+  function handleNomeConsultaChange(val) {
+    const v = val.toUpperCase();
+    setNomeConsulta(v);
+    setResultadoConsulta(null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (v.trim().length < 2) { setSugestoes([]); setMostrarSugestoes(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const nomes = await buscarNomes(v.trim());
+        setSugestoes(nomes);
+        setMostrarSugestoes(nomes.length > 0);
+      } catch { setSugestoes([]); }
+    }, 300);
+  }
+
+  async function selecionarNome(nome) {
+    setNomeConsulta(nome);
+    setMostrarSugestoes(false);
+    setSugestoes([]);
+    setErroConsulta('');
+    setBuscando(true);
+    try {
+      const data = await consultarPedidos(nome);
+      if (Array.isArray(data) && data.length > 0) {
+        setResultadoConsulta({ nome, camisas: data });
+      } else {
+        setResultadoConsulta({ nome, camisas: [] });
+      }
+    } catch { setErroConsulta('Erro de conex\u00e3o.'); }
+    finally { setBuscando(false); }
+  }
+
   async function handleConsulta(e) {
     e.preventDefault();
     setErroConsulta('');
     setResultadoConsulta(null);
+    setMostrarSugestoes(false);
     const n = nomeConsulta.trim().toUpperCase();
     if (!n) { setErroConsulta('Digite seu nome para consultar.'); return; }
     setBuscando(true);
@@ -248,12 +292,24 @@ export default function PublicPage() {
         ) : (
           <div className="bg-[#2A0A16]/80 backdrop-blur border border-ouro/10 rounded-2xl p-5 sm:p-7 max-w-xl w-full shadow-2xl">
             <form onSubmit={handleConsulta} className="space-y-4">
-              <div>
+              <div className="relative" ref={dropdownRef}>
                 <label className="block text-ouro-dark font-bold text-sm mb-2">Digite seu nome</label>
                 <input type="text" value={nomeConsulta}
-                  onChange={e => setNomeConsulta(e.target.value.toUpperCase())}
-                  placeholder="SEU NOME COMPLETO"
+                  onChange={e => handleNomeConsultaChange(e.target.value)}
+                  onFocus={() => { if (sugestoes.length > 0) setMostrarSugestoes(true); }}
+                  placeholder="COMECE A DIGITAR SEU NOME..."
                   className="w-full px-4 py-3 bg-[#1A0610] border border-ouro/10 rounded-xl text-ouro text-sm uppercase focus:outline-none focus:ring-2 focus:ring-acai focus:border-transparent placeholder:text-ouro/30" />
+                {mostrarSugestoes && sugestoes.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-[#2A0A16] border border-ouro/20 rounded-xl shadow-2xl overflow-hidden">
+                    {sugestoes.map((s, i) => (
+                      <button key={i} type="button"
+                        onClick={() => selecionarNome(s)}
+                        className="w-full text-left px-4 py-3 text-ouro text-sm hover:bg-acai/20 transition-colors border-b border-ouro/5 last:border-b-0">
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {erroConsulta && (
                 <div className="bg-red-500/15 border border-red-400/20 text-red-300 text-sm px-4 py-3 rounded-xl text-center">{erroConsulta}</div>

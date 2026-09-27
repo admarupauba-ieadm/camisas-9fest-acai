@@ -19,6 +19,11 @@ export async function consultarPedidos(nome) {
   return res.json();
 }
 
+export async function buscarNomes(query) {
+  const res = await fetch(`${BASE}/pedidos/buscar-nomes?q=${encodeURIComponent(query)}`);
+  return res.json();
+}
+
 export async function verificarNome(nome) {
   const res = await fetch(`${BASE}/pedidos/verificar-nome?nome=${encodeURIComponent(nome)}`);
   return res.json();

@@ -67,6 +67,20 @@ app.post('/api/pedidos', async (req, res) => {
   }
 });
 
+app.get('/api/pedidos/buscar-nomes', async (req, res) => {
+  const q = (req.query.q || '').trim().toUpperCase();
+  if (q.length < 2) return res.json([]);
+  try {
+    const result = await db.execute({
+      sql: "SELECT DISTINCT nome FROM pedidos WHERE UPPER(nome) LIKE ? ORDER BY nome ASC LIMIT 10",
+      args: ['%' + q + '%']
+    });
+    res.json(result.rows.map(r => r.nome));
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
 app.get('/api/pedidos/consulta', async (req, res) => {
   const nome = (req.query.nome || '').trim();
   if (!nome) return res.json([]);
