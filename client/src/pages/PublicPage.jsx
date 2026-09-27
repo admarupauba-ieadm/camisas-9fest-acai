@@ -8,6 +8,7 @@ export default function PublicPage() {
   const [itens, setItens] = useState([{ genero: '', tamanho: '' }]);
   const [enviado, setEnviado] = useState(false);
   const [erro, setErro] = useState('');
+  const [copiado, setCopiado] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
   const [modoConsulta, setModoConsulta] = useState(false);
@@ -169,6 +170,34 @@ export default function PublicPage() {
             <p className="text-ouro/50 text-sm mb-6">
               Valor total: R$ {(preco * itens.length).toFixed(2).replace('.', ',')}
             </p>
+            {/* Chave Pix */}
+            <div className="mb-6">
+              <p className="text-ouro/70 text-xs font-medium mb-2">Chave Pix para pagamento:</p>
+              <div className="relative">
+                <span className="bg-[#1A0610] rounded-lg p-3 font-mono text-sm block focus:outline-none focus:ring-2 focus:ring-acai focus:border-transparent">78be269e-190e-4f21-8918-50b4dd589a91</span>
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText('78be269e-190e-4f21-8918-50b4dd589a91');
+                      setCopiado(true);
+                      setTimeout(() => setCopiado(false), 2000);
+                    } catch {
+                      // Fallback for older browsers
+                      const input = document.createElement('input');
+                      input.value = '78be269e-190e-4f21-8918-50b4dd589a91';
+                      document.body.appendChild(input);
+                      input.select();
+                      document.execCommand('copy');
+                      document.body.removeChild(input);
+                      setCopiado(true);
+                      setTimeout(() => setCopiado(false), 2000);
+                    }
+                  }}
+                  className="bg-acai hover:bg-acai-light text-white font-semibold py-3 px-8 rounded-full transition-all">
+                  {copiado ? 'Copiado! ✓' : 'Copiar Chave Pix'}
+                </button>
+              </div>
+            </div>
             <button onClick={novoPedido}
               className="bg-acai hover:bg-acai-light text-white font-semibold py-3 px-8 rounded-full transition-all">
               Fazer novo pedido
@@ -200,13 +229,27 @@ export default function PublicPage() {
         </div>
       </header>
 
-      <section className="px-4 py-6 flex justify-center">
-        <div className="max-w-xl w-full rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-ouro/10">
-          <img src="/camisa-mockup.png" alt="Camisa oficial - frente e costas" className="w-full h-auto" />
-        </div>
-      </section>
+<section className="px-4 py-6 flex justify-center">
+  <div className="max-w-xl w-full rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-ouro/10">
+    <img src="/camisa-mockup.png" alt="Camisa oficial - frente e costas" className="w-full h-auto" />
+  </div>
+</section>
 
-      <div className="flex justify-center px-4 mb-4">
+{/* Aviso do grupo WhatsApp (sempre visível) */}
+<div className="bg-[#2A0A16]/80 backdrop-blur border border-ouro/10 rounded-2xl p-6 mb-6">
+  <h3 className="text-ouro font-bold text-sm mb-3">📢 Acesse o grupo de avisos.</h3>
+  <div className="relative">
+    <a href="https://chat.whatsapp.com/LOethvMGKHD4YMigUFdW1f"
+       target="_blank"
+       rel="noopener noreferrer"
+       className="absolute right-0 top-1/2 -translate-y-1/2 bg-acai text-white font-semibold py-3 px-8 rounded-full transition-all hover:bg-acai-light text-sm">
+      Entrar no Grupo de Avisos
+    </a>
+  </div>
+  <p className="text-ouro/50 text-sm mt-4">Envie o comprovante de pagamento no grupo, caso tenha feito pelo Pix.</p>
+</div>
+
+<div className="flex justify-center px-4 mb-4">
         <div className="flex bg-[#2A0A16]/60 rounded-full border border-ouro/10 p-1 max-w-xl w-full">
           <button onClick={() => setModoConsulta(false)}
             className={`flex-1 py-2 rounded-full text-sm font-medium transition-all ${!modoConsulta ? 'bg-acai text-white' : 'text-ouro/50 hover:text-ouro/70'}`}>
