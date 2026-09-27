@@ -14,6 +14,16 @@ export async function enviarPedidos(pedidos) {
   return res.json();
 }
 
+export async function consultarPedidos(nome) {
+  const res = await fetch(`${BASE}/pedidos/consulta?nome=${encodeURIComponent(nome)}`);
+  return res.json();
+}
+
+export async function verificarNome(nome) {
+  const res = await fetch(`${BASE}/pedidos/verificar-nome?nome=${encodeURIComponent(nome)}`);
+  return res.json();
+}
+
 export async function login(senha) {
   const res = await fetch(`${BASE}/admin/login`, {
     method: 'POST',

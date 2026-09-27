@@ -1,7 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPedidos, getResumo, atualizarPagamento, deletarPedido, baixarPDF } from '../api';
 import { AcaiBerry } from '../components/Decorations';
+
+function agruparPorNome(pedidos) {
+  const map = new Map();
+  pedidos.forEach(p => {
+    if (!map.has(p.nome)) map.set(p.nome, []);
+    map.get(p.nome).push(p);
+  });
+  return Array.from(map.entries()).map(([nome, camisas]) => ({ nome, camisas }));
+}
 
 export default function AdminPage() {
   const [pedidos, setPedidos] = useState([]);
@@ -38,7 +47,7 @@ export default function AdminPage() {
   }
 
   async function handleDelete(id, nome) {
-    if (!window.confirm(`Excluir o pedido de "${nome}"?`)) return;
+    if (!window.confirm(`Excluir este pedido de "${nome}"?`)) return;
     await deletarPedido(id);
     carregarDados();
   }
@@ -57,6 +66,9 @@ export default function AdminPage() {
     p.nome.toLowerCase().includes(busca.toLowerCase())
   );
 
+  const grupos = useMemo(() => agruparPorNome(pedidosFiltrados), [pedidosFiltrados]);
+  const totalCamisas = pedidosFiltrados.length;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-vinho flex items-center justify-center">
@@ -73,7 +85,7 @@ export default function AdminPage() {
             <AcaiBerry className="w-8 h-8" />
             <div>
               <h1 className="text-lg font-bold text-ouro">Painel Administrativo</h1>
-              <p className="text-ouro/50 text-xs">9&#186; Fest Acai da AD Marupauba</p>
+              <p className="text-ouro/50 text-xs">{'9\u00ba Fest A\u00e7a\u00ed da AD Marupa\u00faba'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -98,7 +110,8 @@ export default function AdminPage() {
         <div className="bg-vinho-light/40 border border-ouro/15 rounded-xl p-4">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
             <h2 className="text-ouro font-semibold">
-              Pedidos ({pedidosFiltrados.length}{busca ? ` de ${pedidos.length}` : ''})
+              {grupos.length} pessoa{grupos.length !== 1 ? 's' : ''} - {totalCamisas} camisa{totalCamisas !== 1 ? 's' : ''}
+              {busca ? ` (filtrado de ${pedidos.length})` : ''}
             </h2>
             <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
               placeholder="Buscar por nome..."
@@ -110,7 +123,7 @@ export default function AdminPage() {
               <thead>
                 <tr className="border-b border-ouro/20">
                   <th className="text-left text-ouro/70 font-medium py-3 px-2">Nome</th>
-                  <th className="text-left text-ouro/70 font-medium py-3 px-2">Genero</th>
+                  <th className="text-left text-ouro/70 font-medium py-3 px-2">{'G\u00eanero'}</th>
                   <th className="text-left text-ouro/70 font-medium py-3 px-2">Tamanho</th>
                   <th className="text-left text-ouro/70 font-medium py-3 px-2">Valor</th>
                   <th className="text-left text-ouro/70 font-medium py-3 px-2 min-w-[200px]">Pagamento</th>
@@ -120,60 +133,75 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {pedidosFiltrados.map(p => (
-                  <tr key={p.id} className="border-b border-ouro/5 hover:bg-ouro/5 transition-colors">
-                    <td className="py-3 px-2 text-ouro">{p.nome}</td>
-                    <td className="py-3 px-2 text-ouro/80">{p.genero}</td>
-                    <td className="py-3 px-2">
-                      <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-1 rounded">{p.tamanho}</span>
-                    </td>
-                    <td className="py-3 px-2 text-ouro/80">R$ {p.valor_camisa.toFixed(2)}</td>
-                    <td className="py-3 px-2">
-                      <PaymentBar percentual={p.percentual_pago} />
-                    </td>
-                    <td className="py-3 px-2">
-                      <PaymentSelect pedido={p} onChange={handlePagamento} />
-                    </td>
-                    <td className="py-3 px-2 text-ouro/80 font-medium">R$ {p.valor_pago.toFixed(2)}</td>
-                    <td className="py-3 px-2 text-right">
-                      <button onClick={() => handleDelete(p.id, p.nome)}
-                        className="text-red-400/60 hover:text-red-400 transition-colors" title="Excluir pedido">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
+                {grupos.map(grupo => (
+                  grupo.camisas.map((p, idx) => (
+                    <tr key={p.id} className={`hover:bg-ouro/5 transition-colors ${idx === grupo.camisas.length - 1 ? 'border-b-2 border-ouro/15' : 'border-b border-ouro/5'}`}>
+                      {idx === 0 ? (
+                        <td className="py-3 px-2 text-ouro align-top" rowSpan={grupo.camisas.length}>
+                          <span className="font-semibold">{grupo.nome}</span>
+                          {grupo.camisas.length > 1 && (
+                            <span className="block text-ouro/40 text-[10px] mt-0.5">{grupo.camisas.length} camisas</span>
+                          )}
+                        </td>
+                      ) : null}
+                      <td className="py-3 px-2 text-ouro/80">{p.genero}</td>
+                      <td className="py-3 px-2">
+                        <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-1 rounded">{p.tamanho}</span>
+                      </td>
+                      <td className="py-3 px-2 text-ouro/80">R$ {Number(p.valor_camisa).toFixed(2)}</td>
+                      <td className="py-3 px-2"><PaymentBar percentual={Number(p.percentual_pago)} /></td>
+                      <td className="py-3 px-2"><PaymentSelect pedido={p} onChange={handlePagamento} /></td>
+                      <td className="py-3 px-2 text-ouro/80 font-medium">R$ {Number(p.valor_pago).toFixed(2)}</td>
+                      <td className="py-3 px-2 text-right">
+                        <button onClick={() => handleDelete(p.id, p.nome)}
+                          className="text-red-400/60 hover:text-red-400 transition-colors" title="Excluir pedido">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))
                 ))}
               </tbody>
             </table>
           </div>
 
-          <div className="lg:hidden space-y-3">
-            {pedidosFiltrados.map(p => (
-              <div key={p.id} className="bg-vinho/40 border border-ouro/10 rounded-xl p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-ouro font-semibold">{p.nome}</p>
-                    <p className="text-ouro/60 text-xs">{p.genero} - <span className="font-bold">{p.tamanho}</span></p>
-                  </div>
-                  <button onClick={() => handleDelete(p.id, p.nome)}
-                    className="text-red-400/60 hover:text-red-400 p-1">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <PaymentBar percentual={p.percentual_pago} />
+          <div className="lg:hidden space-y-4">
+            {grupos.map(grupo => (
+              <div key={grupo.nome} className="bg-vinho/40 border border-ouro/10 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <PaymentSelect pedido={p} onChange={handlePagamento} />
-                  <span className="text-ouro/80 text-sm font-medium">R$ {p.valor_pago.toFixed(2)} / R$ {p.valor_camisa.toFixed(2)}</span>
+                  <div>
+                    <p className="text-ouro font-bold">{grupo.nome}</p>
+                    <p className="text-ouro/40 text-xs">{grupo.camisas.length} camisa{grupo.camisas.length > 1 ? 's' : ''}</p>
+                  </div>
                 </div>
+                {grupo.camisas.map(p => (
+                  <div key={p.id} className="bg-[#1A0610]/40 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-ouro/60 text-xs">{p.genero}</span>
+                        <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-0.5 rounded">{p.tamanho}</span>
+                      </div>
+                      <button onClick={() => handleDelete(p.id, p.nome)}
+                        className="text-red-400/60 hover:text-red-400 p-1">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <PaymentBar percentual={Number(p.percentual_pago)} />
+                    <div className="flex items-center justify-between">
+                      <PaymentSelect pedido={p} onChange={handlePagamento} />
+                      <span className="text-ouro/80 text-xs font-medium">R$ {Number(p.valor_pago).toFixed(2)} / R$ {Number(p.valor_camisa).toFixed(2)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
 
-          {pedidosFiltrados.length === 0 && (
+          {grupos.length === 0 && (
             <div className="text-center py-12 text-ouro/40">
               {busca ? 'Nenhum pedido encontrado para esta busca.' : 'Nenhum pedido registrado ainda.'}
             </div>
@@ -183,7 +211,7 @@ export default function AdminPage() {
 
       <footer className="text-center py-4 px-4 border-t border-ouro/10">
         <a href="/" className="text-ouro/30 hover:text-ouro/60 text-xs transition-colors">
-          Voltar para a pagina publica
+          {'Voltar para a p\u00e1gina p\u00fablica'}
         </a>
       </footer>
     </div>
@@ -218,7 +246,7 @@ function PaymentSelect({ pedido, onChange }) {
         <button key={opt.val}
           onClick={() => onChange(pedido.id, opt.val)}
           className={`text-xs font-medium px-2 py-1 rounded border transition-all ${
-            pedido.percentual_pago === opt.val ? opt.active : opt.color + ' hover:opacity-80'
+            Number(pedido.percentual_pago) === opt.val ? opt.active : opt.color + ' hover:opacity-80'
           }`}>
           {opt.label}
         </button>

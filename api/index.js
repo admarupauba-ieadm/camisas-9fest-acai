@@ -56,7 +56,7 @@ app.post('/api/pedidos', async (req, res) => {
       statements.push({
         sql: `INSERT INTO pedidos (nome, genero, tamanho, valor_camisa, percentual_pago, valor_pago)
               VALUES (?, ?, ?, ?, 0, 0.00)`,
-        args: [item.nome.trim(), item.genero, item.tamanho, preco]
+        args: [item.nome.trim().toUpperCase(), item.genero, item.tamanho, preco]
       });
     }
 
@@ -64,6 +64,34 @@ app.post('/api/pedidos', async (req, res) => {
     res.json({ success: true, message: 'Pedido(s) registrado(s) com sucesso!' });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/pedidos/consulta', async (req, res) => {
+  const nome = (req.query.nome || '').trim();
+  if (!nome) return res.json([]);
+  try {
+    const result = await db.execute({
+      sql: 'SELECT genero, tamanho, valor_camisa, percentual_pago, valor_pago FROM pedidos WHERE LOWER(nome) = LOWER(?) ORDER BY id ASC',
+      args: [nome]
+    });
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+app.get('/api/pedidos/verificar-nome', async (req, res) => {
+  const nome = (req.query.nome || '').trim();
+  if (!nome) return res.json({ existe: false });
+  try {
+    const result = await db.execute({
+      sql: 'SELECT COUNT(*) as total FROM pedidos WHERE LOWER(nome) = LOWER(?)',
+      args: [nome]
+    });
+    res.json({ existe: Number(result.rows[0].total) > 0 });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro interno' });
   }
 });
 
