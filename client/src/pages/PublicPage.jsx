@@ -216,7 +216,7 @@ export default function PublicPage() {
                   {copiado ? 'Copiado! ✓' : 'Copiar Chave Pix'}
                 </button>
               </div>
-              <p className="text-ouro/50 text-xs mt-3">Depois de pagar, envie o comprovante no grupo de avisos do WhatsApp.</p>
+              <p className="text-ouro/50 text-xs mt-3">Depois de pagar, envie o comprovante no grupo de avisos do WhatsApp. O valor à vista (R$ {formatarPreco(precoAvista)}) só é registrado pelo administrador após o envio do comprovante.</p>
             </div>
             <button onClick={novoPedido}
               className="bg-acai hover:bg-acai-light text-white font-semibold py-3 px-8 rounded-full transition-all">
@@ -274,7 +274,7 @@ export default function PublicPage() {
           </div>
           <div className="bg-[#2A0A16]/80 backdrop-blur border-2 border-ouro rounded-2xl p-5 text-center shadow-2xl shadow-ouro-dark/20">
             <p className="text-ouro font-extrabold text-lg sm:text-xl">💰 Pagou à vista? A camisa sai por R$ {formatarPreco(precoAvista)}!</p>
-            <p className="text-ouro/50 text-xs mt-2">Desconto de R$ {formatarPreco(preco - precoAvista)} no pagamento à vista (100% no ato do pedido).</p>
+            <p className="text-ouro/50 text-xs mt-2">Desconto de R$ {formatarPreco(preco - precoAvista)} no pagamento à vista (100% de uma vez). O valor à vista só é registrado pelo administrador após o envio do comprovante no grupo de avisos.</p>
           </div>
         </div>
       </section>
@@ -308,21 +308,21 @@ export default function PublicPage() {
         <span className="w-7 h-7 rounded-full bg-acai text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">3</span>
         <div>
           <p className="text-ouro font-bold text-sm">Pague pelo Pix</p>
-          <p className="text-ouro/60 text-xs mt-1">À vista: R$ {formatarPreco(precoAvista)} por camisa. Parcelado: 50% (R$ {formatarPreco(preco / 2)}) agora e 50% (R$ {formatarPreco(preco / 2)}) no dia {DATA_SEGUNDA_PARCELA}, total de R$ {formatarPreco(preco)}.</p>
+          <p className="text-ouro/60 text-xs mt-1">À vista: R$ {formatarPreco(precoAvista)} por camisa. Parcelado: 50% (R$ {formatarPreco(preco / 2)}) agora e 50% (R$ {formatarPreco(preco / 2)}) no dia {DATA_SEGUNDA_PARCELA}, total de R$ {formatarPreco(preco)}. O desconto à vista só vale depois que o administrador confirmar seu comprovante.</p>
         </div>
       </li>
       <li className="flex gap-3 items-start">
         <span className="w-7 h-7 rounded-full bg-ouro-dark text-vinho font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">4</span>
         <div>
           <p className="text-ouro font-bold text-sm">Envie o comprovante</p>
-          <p className="text-ouro/60 text-xs mt-1">Entre no grupo de avisos do WhatsApp e envie o comprovante do Pix.</p>
+          <p className="text-ouro/60 text-xs mt-1">Entre no grupo de avisos do WhatsApp e envie o comprovante do Pix. É o comprovante que permite ao administrador confirmar seu pagamento (50% ou 100%, com o desconto à vista quando for o caso).</p>
         </div>
       </li>
       <li className="flex gap-3 items-start">
         <span className="w-7 h-7 rounded-full bg-acai text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">5</span>
         <div>
           <p className="text-ouro font-bold text-sm">Acompanhe seu pedido</p>
-          <p className="text-ouro/60 text-xs mt-1">Toque em "Consultar meu pedido" e digite seu nome. O administrador confirma seu pagamento (50% ou 100%).</p>
+          <p className="text-ouro/60 text-xs mt-1">Toque em "Consultar meu pedido" e digite seu nome. O status do pagamento só é atualizado depois que o administrador confirmar o comprovante enviado no grupo.</p>
         </div>
       </li>
     </ol>
