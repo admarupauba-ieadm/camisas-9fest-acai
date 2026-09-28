@@ -1,15 +1,33 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPedidos, getResumo, atualizarPagamento, deletarPedido, baixarPDF, getPreco } from '../api';
 import { AcaiBerry } from '../components/Decorations';
 
+function normalizarNome(nome) {
+  return nome.trim().toLowerCase();
+}
+
+// Agrupa pela chave do nome normalizado; o grupo fica na posicao do primeiro pedido da pessoa
 function agruparPorNome(pedidos) {
   const map = new Map();
   pedidos.forEach(p => {
-    if (!map.has(p.nome)) map.set(p.nome, []);
-    map.get(p.nome).push(p);
+    const chave = normalizarNome(p.nome);
+    if (!map.has(chave)) map.set(chave, { chave, nome: p.nome, camisas: [] });
+    map.get(chave).camisas.push(p);
   });
-  return Array.from(map.entries()).map(([nome, camisas]) => ({ nome, camisas }));
+  return Array.from(map.values());
+}
+
+// Resumo do grupo: pago = soma de valor_pago; devido = preco a vista quando for o caso, senao valor_camisa
+function resumoGrupo(camisas, precoAvista) {
+  const pago = camisas.reduce((s, p) => s + Number(p.valor_pago), 0);
+  const devido = camisas.reduce((s, p) =>
+    s + (Number(p.pagamento_avista) === 1 ? precoAvista : Number(p.valor_camisa)), 0);
+  const tamanhos = [...new Set(camisas.map(p => p.tamanho))].join(', ');
+  const todos100 = camisas.every(p => Number(p.percentual_pago) === 100);
+  const algumPago = camisas.some(p => Number(p.percentual_pago) > 0);
+  const status = todos100 ? 'verde' : algumPago ? 'amarela' : 'vermelha';
+  return { pago, devido, tamanhos, status };
 }
 
 export default function AdminPage() {
@@ -20,7 +38,18 @@ export default function AdminPage() {
   const [baixandoPdf, setBaixandoPdf] = useState(false);
   const [preco, setPreco] = useState(35);
   const [precoAvista, setPrecoAvista] = useState(30);
+  // Grupos abertos, guardados pela chave do nome normalizado (sobrevive a recargas de dados)
+  const [expandidos, setExpandidos] = useState(() => new Set());
   const navigate = useNavigate();
+
+  function alternarGrupo(chave) {
+    setExpandidos(prev => {
+      const novo = new Set(prev);
+      if (novo.has(chave)) novo.delete(chave);
+      else novo.add(chave);
+      return novo;
+    });
+  }
 
   useEffect(() => {
     getPreco().then(data => {
@@ -142,72 +171,105 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {grupos.map(grupo => (
-                  grupo.camisas.map((p, idx) => (
-                    <tr key={p.id} className={`hover:bg-ouro/5 transition-colors ${idx === grupo.camisas.length - 1 ? 'border-b-2 border-ouro/15' : 'border-b border-ouro/5'}`}>
-                      {idx === 0 ? (
-                        <td className="py-3 px-2 text-ouro align-top" rowSpan={grupo.camisas.length}>
+                {grupos.map(grupo => {
+                  if (grupo.camisas.length === 1) {
+                    const p = grupo.camisas[0];
+                    return (
+                      <tr key={p.id} className="hover:bg-ouro/5 transition-colors border-b-2 border-ouro/15">
+                        <td className="py-3 px-2 text-ouro align-top">
                           <span className="font-semibold">{grupo.nome}</span>
-                          {grupo.camisas.length > 1 && (
-                            <span className="block text-ouro/40 text-[10px] mt-0.5">{grupo.camisas.length} camisas</span>
-                          )}
                         </td>
-                      ) : null}
-                      <td className="py-3 px-2 text-ouro/80">{p.genero}</td>
-                      <td className="py-3 px-2">
-                        <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-1 rounded">{p.tamanho}</span>
-                      </td>
-                      <td className="py-3 px-2 text-ouro/80">R$ {Number(p.valor_camisa).toFixed(2)}</td>
-                      <td className="py-3 px-2"><PaymentBar percentual={Number(p.percentual_pago)} avista={Number(p.pagamento_avista) === 1} /></td>
-                      <td className="py-3 px-2 min-w-[320px]"><PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} onChange={handlePagamento} /></td>
-                      <td className="py-3 px-2 text-ouro/80 font-medium">R$ {Number(p.valor_pago).toFixed(2)}</td>
-                      <td className="py-3 px-2 text-right">
-                        <button onClick={() => handleDelete(p.id, p.nome)}
-                          className="text-red-400/60 hover:text-red-400 transition-colors" title="Excluir pedido">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ))}
+                        <PedidoCelulas p={p} preco={preco} precoAvista={precoAvista}
+                          onPagamento={handlePagamento} onDelete={handleDelete} />
+                      </tr>
+                    );
+                  }
+
+                  const resumo = resumoGrupo(grupo.camisas, precoAvista);
+                  const aberto = expandidos.has(grupo.chave);
+
+                  return (
+                    <Fragment key={grupo.chave}>
+                      <tr role="button" tabIndex={0} aria-expanded={aberto}
+                        onClick={() => alternarGrupo(grupo.chave)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarGrupo(grupo.chave); }
+                        }}
+                        className="hover:bg-ouro/10 transition-colors border-b border-ouro/5 cursor-pointer bg-ouro/5">
+                        <td className="py-3 px-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Chevron aberto={aberto} />
+                            <span className="font-semibold text-ouro">{grupo.nome}</span>
+                            <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-0.5 rounded">
+                              {grupo.camisas.length} camisas
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-2"></td>
+                        <td className="py-3 px-2 text-ouro/60 text-xs">{resumo.tamanhos}</td>
+                        <td className="py-3 px-2"></td>
+                        <td className="py-3 px-2 text-ouro/80 text-xs whitespace-nowrap">
+                          Pago R$ {resumo.pago.toFixed(2)} de R$ {resumo.devido.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-2"><StatusDot status={resumo.status} /></td>
+                        <td className="py-3 px-2"></td>
+                        <td className="py-3 px-2"></td>
+                      </tr>
+                      {aberto && grupo.camisas.map(p => (
+                        <tr key={p.id} className="border-b border-ouro/5">
+                          <td className="w-4 border-l-4 border-acai/70 bg-acai/5"></td>
+                          <PedidoCelulas p={p} preco={preco} precoAvista={precoAvista}
+                            onPagamento={handlePagamento} onDelete={handleDelete} />
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           <div className="lg:hidden space-y-4">
-            {grupos.map(grupo => (
-              <div key={grupo.nome} className="bg-vinho/40 border border-ouro/10 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
+            {grupos.map(grupo => {
+              if (grupo.camisas.length === 1) {
+                const p = grupo.camisas[0];
+                return (
+                  <div key={grupo.chave} className="bg-vinho/40 border border-ouro/10 rounded-xl p-4 space-y-3">
+                    <div>
+                      <p className="text-ouro font-bold">{grupo.nome}</p>
+                      <p className="text-ouro/40 text-xs">1 camisa</p>
+                    </div>
+                    <PedidoCardMobile p={p} preco={preco} precoAvista={precoAvista}
+                      onPagamento={handlePagamento} onDelete={handleDelete} />
+                  </div>
+                );
+              }
+
+              const resumo = resumoGrupo(grupo.camisas, precoAvista);
+              const aberto = expandidos.has(grupo.chave);
+
+              return (
+                <div key={grupo.chave} className="bg-vinho/40 border border-ouro/10 rounded-xl p-4 space-y-3">
+                  <button type="button" aria-expanded={aberto} onClick={() => alternarGrupo(grupo.chave)}
+                    className="w-full text-left flex items-center gap-2 flex-wrap">
+                    <Chevron aberto={aberto} />
                     <p className="text-ouro font-bold">{grupo.nome}</p>
-                    <p className="text-ouro/40 text-xs">{grupo.camisas.length} camisa{grupo.camisas.length > 1 ? 's' : ''}</p>
-                  </div>
+                    <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-0.5 rounded">
+                      {grupo.camisas.length} camisas
+                    </span>
+                    <span className="text-ouro/50 text-xs">{resumo.tamanhos}</span>
+                    <span className="text-ouro/70 text-xs">
+                      Pago R$ {resumo.pago.toFixed(2)} de R$ {resumo.devido.toFixed(2)}
+                    </span>
+                    <StatusDot status={resumo.status} />
+                  </button>
+                  {aberto && grupo.camisas.map(p => (
+                    <PedidoCardMobile key={p.id} p={p} preco={preco} precoAvista={precoAvista}
+                      onPagamento={handlePagamento} onDelete={handleDelete} indentado />
+                  ))}
                 </div>
-                {grupo.camisas.map(p => (
-                  <div key={p.id} className="bg-[#1A0610]/40 rounded-lg p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-ouro/60 text-xs">{p.genero}</span>
-                        <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-0.5 rounded">{p.tamanho}</span>
-                      </div>
-                      <button onClick={() => handleDelete(p.id, p.nome)}
-                        className="text-red-400/60 hover:text-red-400 p-1">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                    <PaymentBar percentual={Number(p.percentual_pago)} avista={Number(p.pagamento_avista) === 1} />
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} onChange={handlePagamento} />
-                      <span className="text-ouro/80 text-xs font-medium">R$ {Number(p.valor_pago).toFixed(2)} / R$ {Number(p.valor_camisa).toFixed(2)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {grupos.length === 0 && (
@@ -272,6 +334,69 @@ function PaymentSelect({ pedido, preco, precoAvista, onChange }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function Chevron({ aberto }) {
+  return (
+    <svg className={`w-4 h-4 text-ouro/70 shrink-0 transition-transform duration-200 ${aberto ? 'rotate-180' : ''}`}
+      fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+function StatusDot({ status }) {
+  const cor = status === 'verde' ? 'bg-green-500' : status === 'amarela' ? 'bg-yellow-500' : 'bg-red-500';
+  return <span className={`inline-block w-3 h-3 rounded-full shrink-0 ${cor}`} aria-hidden="true" />;
+}
+
+// Celulas compartilhadas da tabela desktop (Genero ate o botao de excluir)
+function PedidoCelulas({ p, preco, precoAvista, onPagamento, onDelete }) {
+  return (
+    <>
+      <td className="py-3 px-2 text-ouro/80">{p.genero}</td>
+      <td className="py-3 px-2">
+        <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-1 rounded">{p.tamanho}</span>
+      </td>
+      <td className="py-3 px-2 text-ouro/80">R$ {Number(p.valor_camisa).toFixed(2)}</td>
+      <td className="py-3 px-2"><PaymentBar percentual={Number(p.percentual_pago)} avista={Number(p.pagamento_avista) === 1} /></td>
+      <td className="py-3 px-2 min-w-[320px]"><PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} onChange={onPagamento} /></td>
+      <td className="py-3 px-2 text-ouro/80 font-medium">R$ {Number(p.valor_pago).toFixed(2)}</td>
+      <td className="py-3 px-2 text-right">
+        <button onClick={() => onDelete(p.id, p.nome)}
+          className="text-red-400/60 hover:text-red-400 transition-colors" title="Excluir pedido">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </td>
+    </>
+  );
+}
+
+// Sub-card de pedido compartilhado na visualizacao mobile
+function PedidoCardMobile({ p, preco, precoAvista, onPagamento, onDelete, indentado = false }) {
+  return (
+    <div className={`bg-[#1A0610]/40 rounded-lg p-3 space-y-2 ${indentado ? 'border-l-4 border-acai/70' : ''}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-ouro/60 text-xs">{p.genero}</span>
+          <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-0.5 rounded">{p.tamanho}</span>
+        </div>
+        <button onClick={() => onDelete(p.id, p.nome)}
+          className="text-red-400/60 hover:text-red-400 p-1">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <PaymentBar percentual={Number(p.percentual_pago)} avista={Number(p.pagamento_avista) === 1} />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} onChange={onPagamento} />
+        <span className="text-ouro/80 text-xs font-medium">R$ {Number(p.valor_pago).toFixed(2)} / R$ {Number(p.valor_camisa).toFixed(2)}</span>
+      </div>
     </div>
   );
 }
