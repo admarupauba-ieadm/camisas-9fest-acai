@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPedidos, getResumo, atualizarPagamento, deletarPedido, baixarPDF } from '../api';
+import { getPedidos, getResumo, atualizarPagamento, deletarPedido, baixarPDF, getPreco } from '../api';
 import { AcaiBerry } from '../components/Decorations';
 
 function agruparPorNome(pedidos) {
@@ -18,7 +18,16 @@ export default function AdminPage() {
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
   const [baixandoPdf, setBaixandoPdf] = useState(false);
+  const [preco, setPreco] = useState(35);
+  const [precoAvista, setPrecoAvista] = useState(30);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    getPreco().then(data => {
+      if (data && data.preco != null) setPreco(data.preco);
+      if (data && data.preco_avista != null) setPrecoAvista(data.preco_avista);
+    }).catch(() => {});
+  }, []);
 
   const carregarDados = useCallback(async () => {
     try {
@@ -41,8 +50,8 @@ export default function AdminPage() {
     carregarDados();
   }, [navigate, carregarDados]);
 
-  async function handlePagamento(id, percentual) {
-    await atualizarPagamento(id, percentual);
+  async function handlePagamento(id, percentual, avista) {
+    await atualizarPagamento(id, percentual, avista);
     carregarDados();
   }
 
@@ -149,8 +158,8 @@ export default function AdminPage() {
                         <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-1 rounded">{p.tamanho}</span>
                       </td>
                       <td className="py-3 px-2 text-ouro/80">R$ {Number(p.valor_camisa).toFixed(2)}</td>
-                      <td className="py-3 px-2"><PaymentBar percentual={Number(p.percentual_pago)} /></td>
-                      <td className="py-3 px-2"><PaymentSelect pedido={p} onChange={handlePagamento} /></td>
+                      <td className="py-3 px-2"><PaymentBar percentual={Number(p.percentual_pago)} avista={Number(p.pagamento_avista) === 1} /></td>
+                      <td className="py-3 px-2 min-w-[320px]"><PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} onChange={handlePagamento} /></td>
                       <td className="py-3 px-2 text-ouro/80 font-medium">R$ {Number(p.valor_pago).toFixed(2)}</td>
                       <td className="py-3 px-2 text-right">
                         <button onClick={() => handleDelete(p.id, p.nome)}
@@ -190,9 +199,9 @@ export default function AdminPage() {
                         </svg>
                       </button>
                     </div>
-                    <PaymentBar percentual={Number(p.percentual_pago)} />
-                    <div className="flex items-center justify-between">
-                      <PaymentSelect pedido={p} onChange={handlePagamento} />
+                    <PaymentBar percentual={Number(p.percentual_pago)} avista={Number(p.pagamento_avista) === 1} />
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} onChange={handlePagamento} />
                       <span className="text-ouro/80 text-xs font-medium">R$ {Number(p.valor_pago).toFixed(2)} / R$ {Number(p.valor_camisa).toFixed(2)}</span>
                     </div>
                   </div>
@@ -218,7 +227,7 @@ export default function AdminPage() {
   );
 }
 
-function PaymentBar({ percentual }) {
+function PaymentBar({ percentual, avista }) {
   const width = percentual === 100 ? '100%' : percentual === 50 ? '50%' : '5%';
   const color = percentual === 100 ? 'bg-green-500' : percentual === 50 ? 'bg-yellow-500' : 'bg-red-500';
   const label = percentual === 100 ? '100%' : percentual === 50 ? '50%' : '0%';
@@ -231,26 +240,38 @@ function PaymentBar({ percentual }) {
           <span className="text-[10px] font-bold text-white px-1.5">{label}</span>
         </div>
       </div>
+      {percentual === 100 && avista && (
+        <span className="text-[10px] font-bold text-green-400 bg-green-500/15 border border-green-500/30 px-1.5 py-0.5 rounded whitespace-nowrap">à vista</span>
+      )}
     </div>
   );
 }
 
-function PaymentSelect({ pedido, onChange }) {
+function PaymentSelect({ pedido, preco, precoAvista, onChange }) {
+  const fmt = v => v.toFixed(2).replace('.', ',');
+  const avistaPedido = Number(pedido.pagamento_avista) === 1;
+
+  const opcoes = [
+    { val: 0, avista: false, label: 'Pendente (0%)', color: 'bg-red-500/20 text-red-400 border-red-500/30', active: 'bg-red-500 text-white border-red-500' },
+    { val: 50, avista: false, label: `50% pago (R$ ${fmt(preco / 2)})`, color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', active: 'bg-yellow-500 text-white border-yellow-500' },
+    { val: 100, avista: false, label: `100% pago – parcelado (R$ ${fmt(preco)})`, color: 'bg-green-500/20 text-green-400 border-green-500/30', active: 'bg-green-500 text-white border-green-500' },
+    { val: 100, avista: true, label: `100% pago – à vista (R$ ${fmt(precoAvista)})`, color: 'bg-green-500/20 text-green-400 border-green-500/30', active: 'bg-green-500 text-white border-green-500' },
+  ];
+
   return (
-    <div className="flex items-center gap-1">
-      {[
-        { val: 0, label: 'Pendente', color: 'bg-red-500/20 text-red-400 border-red-500/30', active: 'bg-red-500 text-white border-red-500' },
-        { val: 50, label: '50%', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', active: 'bg-yellow-500 text-white border-yellow-500' },
-        { val: 100, label: '100%', color: 'bg-green-500/20 text-green-400 border-green-500/30', active: 'bg-green-500 text-white border-green-500' },
-      ].map(opt => (
-        <button key={opt.val}
-          onClick={() => onChange(pedido.id, opt.val)}
-          className={`text-xs font-medium px-2 py-1 rounded border transition-all ${
-            Number(pedido.percentual_pago) === opt.val ? opt.active : opt.color + ' hover:opacity-80'
-          }`}>
-          {opt.label}
-        </button>
-      ))}
+    <div className="flex flex-wrap items-center gap-1">
+      {opcoes.map(opt => {
+        const ativo = Number(pedido.percentual_pago) === opt.val && (opt.val !== 100 || avistaPedido === opt.avista);
+        return (
+          <button key={opt.label}
+            onClick={() => onChange(pedido.id, opt.val, opt.avista)}
+            className={`text-xs font-medium px-2 py-1 rounded border transition-all ${
+              ativo ? opt.active : opt.color + ' hover:opacity-80'
+            }`}>
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

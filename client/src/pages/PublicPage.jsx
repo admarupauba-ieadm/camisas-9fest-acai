@@ -2,8 +2,22 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getPreco, enviarPedidos, consultarPedidos, verificarNome, buscarNomes } from '../api';
 
+// Datas do evento — editar aqui quando mudar
+const DATA_INICIO_PEDIDOS = '27/09';
+const DATA_FIM_PEDIDOS = '05/10';
+const DATA_SEGUNDA_PARCELA = '30/10';
+
+// Fallbacks usados apenas ate a API responder
+const PRECO_PADRAO_PARCELADO = 35;
+const PRECO_PADRAO_AVISTA = 30;
+
+function formatarPreco(valor) {
+  return valor.toFixed(2).replace('.', ',');
+}
+
 export default function PublicPage() {
-  const [preco, setPreco] = useState(35);
+  const [preco, setPreco] = useState(PRECO_PADRAO_PARCELADO);
+  const [precoAvista, setPrecoAvista] = useState(PRECO_PADRAO_AVISTA);
   const [nome, setNome] = useState('');
   const [itens, setItens] = useState([{ genero: '', tamanho: '' }]);
   const [enviado, setEnviado] = useState(false);
@@ -22,7 +36,10 @@ export default function PublicPage() {
   const dropdownRef = useRef(null);
 
   useEffect(() => {
-    getPreco().then(data => { if (data && data.preco != null) setPreco(data.preco); }).catch(() => {});
+    getPreco().then(data => {
+      if (data && data.preco != null) setPreco(data.preco);
+      if (data && data.preco_avista != null) setPrecoAvista(data.preco_avista);
+    }).catch(() => {});
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setMostrarSugestoes(false);
@@ -167,9 +184,11 @@ export default function PublicPage() {
                 : `Suas ${itens.length} camisas foram registradas com sucesso.`
               }
             </p>
-            <p className="text-ouro/50 text-sm mb-6">
-              Valor total: R$ {(preco * itens.length).toFixed(2).replace('.', ',')}
-            </p>
+            <div className="text-ouro/70 text-sm mb-6 space-y-1">
+              <p>À vista: R$ {formatarPreco(precoAvista)} × {itens.length} = <span className="text-ouro-dark font-bold">R$ {formatarPreco(precoAvista * itens.length)}</span></p>
+              <p>Parcelado: R$ {formatarPreco((preco * itens.length) / 2)} agora (50%) + R$ {formatarPreco((preco * itens.length) / 2)} no dia {DATA_SEGUNDA_PARCELA} (50%)</p>
+              <p className="text-ouro/50 text-xs">= total de R$ {formatarPreco(preco * itens.length)} (R$ {formatarPreco(preco)} × {itens.length})</p>
+            </div>
             {/* Chave Pix */}
             <div className="mb-6">
               <p className="text-ouro/70 text-xs font-medium mb-2">Chave Pix para pagamento:</p>
@@ -197,6 +216,7 @@ export default function PublicPage() {
                   {copiado ? 'Copiado! ✓' : 'Copiar Chave Pix'}
                 </button>
               </div>
+              <p className="text-ouro/50 text-xs mt-3">Depois de pagar, envie o comprovante no grupo de avisos do WhatsApp.</p>
             </div>
             <button onClick={novoPedido}
               className="bg-acai hover:bg-acai-light text-white font-semibold py-3 px-8 rounded-full transition-all">
@@ -225,29 +245,103 @@ export default function PublicPage() {
           {'Igreja Assembleia de Deus \u2014 Campo Marupa\u00faba, Tom\u00e9-A\u00e7u, Par\u00e1'}
         </p>
         <div className="inline-block mt-4 border border-ouro-dark/60 rounded-full px-5 py-1.5">
-          <span className="text-ouro-dark font-bold text-sm">R$ {preco.toFixed(2).replace('.', ',')} por camisa</span>
+          <span className="text-ouro-dark font-bold text-sm">R$ {formatarPreco(precoAvista)} à vista | R$ {formatarPreco(preco)} parcelado</span>
         </div>
       </header>
 
-<section className="px-4 py-6 flex justify-center">
+      {/* Informações do pedido */}
+      <section className="px-4 pb-2 flex justify-center">
+        <div className="max-w-xl w-full space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-[#2A0A16]/80 backdrop-blur border border-ouro/10 rounded-xl p-4 text-center">
+              <p className="text-2xl leading-none">🏷️</p>
+              <p className="text-ouro/60 text-xs font-medium mt-2 tracking-wide">VALOR DA CAMISA</p>
+              <p className="text-ouro-dark font-extrabold text-lg mt-1">R$ {formatarPreco(preco)}</p>
+              <p className="text-ouro/50 text-xs mt-1">no pagamento parcelado</p>
+            </div>
+            <div className="bg-[#2A0A16]/80 backdrop-blur border border-ouro/10 rounded-xl p-4 text-center">
+              <p className="text-2xl leading-none">📅</p>
+              <p className="text-ouro/60 text-xs font-medium mt-2 tracking-wide">PRAZO PARA PEDIDOS</p>
+              <p className="text-ouro-dark font-extrabold text-lg mt-1">{DATA_INICIO_PEDIDOS} até {DATA_FIM_PEDIDOS}</p>
+              <p className="text-ouro/50 text-xs mt-1">pedidos somente nesse período</p>
+            </div>
+            <div className="bg-[#2A0A16]/80 backdrop-blur border border-ouro/10 rounded-xl p-4 text-center">
+              <p className="text-2xl leading-none">💳</p>
+              <p className="text-ouro/60 text-xs font-medium mt-2 tracking-wide">PAGAMENTO</p>
+              <p className="text-ouro-dark font-extrabold text-lg mt-1">50% + 50%</p>
+              <p className="text-ouro/50 text-xs mt-1">50% no pedido da camisa e 50% no dia {DATA_SEGUNDA_PARCELA}</p>
+            </div>
+          </div>
+          <div className="bg-[#2A0A16]/80 backdrop-blur border-2 border-ouro rounded-2xl p-5 text-center shadow-2xl shadow-ouro-dark/20">
+            <p className="text-ouro font-extrabold text-lg sm:text-xl">💰 Pagou à vista? A camisa sai por R$ {formatarPreco(precoAvista)}!</p>
+            <p className="text-ouro/50 text-xs mt-2">Desconto de R$ {formatarPreco(preco - precoAvista)} no pagamento à vista (100% no ato do pedido).</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 py-6 flex justify-center">
   <div className="max-w-xl w-full rounded-2xl overflow-hidden shadow-2xl shadow-black/40 border border-ouro/10">
     <img src="/camisa-mockup.png" alt="Camisa oficial - frente e costas" className="w-full h-auto" />
   </div>
 </section>
 
+{/* Passo a passo — Como fazer seu pedido */}
+<section className="px-4 pb-6 flex justify-center">
+  <div className="bg-[#2A0A16]/80 backdrop-blur border border-ouro/10 rounded-2xl p-5 sm:p-7 max-w-xl w-full shadow-2xl">
+    <h3 className="text-ouro font-bold text-base mb-5 text-center">Como fazer seu pedido</h3>
+    <ol className="space-y-4">
+      <li className="flex gap-3 items-start">
+        <span className="w-7 h-7 rounded-full bg-acai text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
+        <div>
+          <p className="text-ouro font-bold text-sm">Escolha sua camisa</p>
+          <p className="text-ouro/60 text-xs mt-1">Preencha seu nome completo, escolha Masculino ou Feminino e o tamanho (PP, P, M, G ou GG). Quer mais de uma? Toque em "Adicionar outro tamanho/pedido".</p>
+        </div>
+      </li>
+      <li className="flex gap-3 items-start">
+        <span className="w-7 h-7 rounded-full bg-ouro-dark text-vinho font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
+        <div>
+          <p className="text-ouro font-bold text-sm">Envie o pedido</p>
+          <p className="text-ouro/60 text-xs mt-1">Toque em "Enviar pedido". Você verá a confirmação com o valor e a chave Pix.</p>
+        </div>
+      </li>
+      <li className="flex gap-3 items-start">
+        <span className="w-7 h-7 rounded-full bg-acai text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">3</span>
+        <div>
+          <p className="text-ouro font-bold text-sm">Pague pelo Pix</p>
+          <p className="text-ouro/60 text-xs mt-1">À vista: R$ {formatarPreco(precoAvista)} por camisa. Parcelado: 50% (R$ {formatarPreco(preco / 2)}) agora e 50% (R$ {formatarPreco(preco / 2)}) no dia {DATA_SEGUNDA_PARCELA}, total de R$ {formatarPreco(preco)}.</p>
+        </div>
+      </li>
+      <li className="flex gap-3 items-start">
+        <span className="w-7 h-7 rounded-full bg-ouro-dark text-vinho font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">4</span>
+        <div>
+          <p className="text-ouro font-bold text-sm">Envie o comprovante</p>
+          <p className="text-ouro/60 text-xs mt-1">Entre no grupo de avisos do WhatsApp e envie o comprovante do Pix.</p>
+        </div>
+      </li>
+      <li className="flex gap-3 items-start">
+        <span className="w-7 h-7 rounded-full bg-acai text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">5</span>
+        <div>
+          <p className="text-ouro font-bold text-sm">Acompanhe seu pedido</p>
+          <p className="text-ouro/60 text-xs mt-1">Toque em "Consultar meu pedido" e digite seu nome. O administrador confirma seu pagamento (50% ou 100%).</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
 {/* Aviso do grupo WhatsApp (sempre visível) */}
-<div className="bg-[#2A0A16]/80 backdrop-blur border border-ouro/10 rounded-2xl p-6 mb-6">
-  <h3 className="text-ouro font-bold text-sm mb-3">📢 Acesse o grupo de avisos.</h3>
-  <div className="relative">
+<section className="px-4 pb-6 flex justify-center">
+  <div className="bg-[#2A0A16]/80 backdrop-blur border border-ouro/10 rounded-2xl p-6 max-w-xl w-full text-center">
+    <h3 className="text-ouro font-bold text-sm mb-3">📢 Acesse o grupo de avisos.</h3>
     <a href="https://chat.whatsapp.com/LOethvMGKHD4YMigUFdW1f"
        target="_blank"
        rel="noopener noreferrer"
-       className="absolute right-0 top-1/2 -translate-y-1/2 bg-acai text-white font-semibold py-3 px-8 rounded-full transition-all hover:bg-acai-light text-sm">
+       className="inline-block bg-acai text-white font-semibold py-3 px-8 rounded-full transition-all hover:bg-acai-light text-sm">
       Entrar no Grupo de Avisos
     </a>
+    <p className="text-ouro/50 text-sm mt-4">Envie o comprovante de pagamento no grupo, caso tenha feito pelo Pix.</p>
   </div>
-  <p className="text-ouro/50 text-sm mt-4">Envie o comprovante de pagamento no grupo, caso tenha feito pelo Pix.</p>
-</div>
+</section>
 
 <div className="flex justify-center px-4 mb-4">
         <div className="flex bg-[#2A0A16]/60 rounded-full border border-ouro/10 p-1 max-w-xl w-full">
@@ -381,7 +475,7 @@ export default function PublicPage() {
                           </div>
                           <span className="text-ouro/60 text-xs">R$ {Number(c.valor_camisa).toFixed(2).replace('.', ',')}</span>
                         </div>
-                        <StatusBar percentual={Number(c.percentual_pago)} valorPago={Number(c.valor_pago)} valorTotal={Number(c.valor_camisa)} />
+                        <StatusBar percentual={Number(c.percentual_pago)} valorPago={Number(c.valor_pago)} valorTotal={Number(c.valor_camisa)} avista={Number(c.pagamento_avista) === 1} />
                       </div>
                     ))}
                   </div>
@@ -401,10 +495,10 @@ export default function PublicPage() {
   );
 }
 
-function StatusBar({ percentual, valorPago, valorTotal }) {
+function StatusBar({ percentual, valorPago, valorTotal, avista }) {
   const width = percentual === 100 ? '100%' : percentual === 50 ? '50%' : '5%';
   const color = percentual === 100 ? 'bg-green-500' : percentual === 50 ? 'bg-yellow-500' : 'bg-red-500';
-  const label = percentual === 100 ? 'Pago' : percentual === 50 ? '50% Pago' : 'Pendente';
+  const label = percentual === 100 ? (avista ? 'Pago (à vista)' : 'Pago') : percentual === 50 ? '50% Pago' : 'Pendente';
 
   return (
     <div>

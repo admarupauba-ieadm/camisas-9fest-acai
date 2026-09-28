@@ -62,11 +62,11 @@ export async function getResumo() {
   return res.json();
 }
 
-export async function atualizarPagamento(id, percentual_pago) {
+export async function atualizarPagamento(id, percentual_pago, pagamento_avista = false) {
   const res = await fetch(`${BASE}/admin/pedidos/${id}/pagamento`, {
     method: 'PUT',
     headers: authHeaders(),
-    body: JSON.stringify({ percentual_pago })
+    body: JSON.stringify({ percentual_pago, pagamento_avista })
   });
   return res.json();
 }

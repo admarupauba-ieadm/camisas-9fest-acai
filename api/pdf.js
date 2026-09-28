@@ -75,8 +75,9 @@ export function gerarPDF(pedidos, preco, stream) {
       doc.text('R$ ' + Number(p.valor_camisa).toFixed(2), colX[2] + 4, y + 5, { width: colW[2] - 8 });
 
       const pct = Number(p.percentual_pago);
+      const avista = Number(p.pagamento_avista) === 1;
       let statusText, statusColor;
-      if (pct === 100) { statusText = '100% Pago'; statusColor = COLORS.green; }
+      if (pct === 100) { statusText = avista ? '100% Pago (à vista)' : '100% Pago'; statusColor = COLORS.green; }
       else if (pct === 50) { statusText = '50% Pago'; statusColor = COLORS.yellow; }
       else { statusText = 'Pendente'; statusColor = COLORS.red; }
 
@@ -136,8 +137,10 @@ export function gerarPDF(pedidos, preco, stream) {
   checkPage(60);
 
   const totalArrecadado = pedidos.reduce((s, p) => s + Number(p.valor_pago), 0);
+  // Pendente por pedido: 0 se 100% pago (a vista ou parcelado); senao valor_camisa - valor_pago
+  const totalPendente = pedidos.reduce((s, p) =>
+    s + (Number(p.percentual_pago) === 100 ? 0 : Number(p.valor_camisa) - Number(p.valor_pago)), 0);
   const totalGeral = pedidos.reduce((s, p) => s + Number(p.valor_camisa), 0);
-  const totalPendente = totalGeral - totalArrecadado;
 
   doc.fontSize(10).fillColor(COLORS.green)
     .text('Valor total arrecadado: R$ ' + totalArrecadado.toFixed(2), 50, y);

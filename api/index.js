@@ -24,12 +24,19 @@ function authMiddleware(req, res, next) {
 
 app.get('/api/preco', async (req, res) => {
   try {
-    const result = await db.execute({
-      sql: 'SELECT value FROM config WHERE key = ?',
-      args: ['preco_camisa']
-    });
+    const [result, resultAvista] = await Promise.all([
+      db.execute({
+        sql: 'SELECT value FROM config WHERE key = ?',
+        args: ['preco_camisa']
+      }),
+      db.execute({
+        sql: 'SELECT value FROM config WHERE key = ?',
+        args: ['preco_avista']
+      })
+    ]);
     const preco = result.rows.length > 0 ? parseFloat(result.rows[0].value) : 35;
-    res.json({ preco });
+    const precoAvista = resultAvista.rows.length > 0 ? parseFloat(resultAvista.rows[0].value) : 30;
+    res.json({ preco, preco_avista: precoAvista });
   } catch (err) {
     res.status(500).json({ error: 'Erro interno' });
   }
@@ -86,7 +93,7 @@ app.get('/api/pedidos/consulta', async (req, res) => {
   if (!nome) return res.json([]);
   try {
     const result = await db.execute({
-      sql: 'SELECT genero, tamanho, valor_camisa, percentual_pago, valor_pago FROM pedidos WHERE LOWER(nome) = LOWER(?) ORDER BY id ASC',
+      sql: 'SELECT genero, tamanho, valor_camisa, percentual_pago, valor_pago, pagamento_avista FROM pedidos WHERE LOWER(nome) = LOWER(?) ORDER BY id ASC',
       args: [nome]
     });
     res.json(result.rows);
@@ -140,22 +147,39 @@ app.get('/api/admin/pedidos', authMiddleware, async (req, res) => {
 
 app.put('/api/admin/pedidos/:id/pagamento', authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { percentual_pago } = req.body;
+  const { percentual_pago, pagamento_avista } = req.body;
 
   if (![0, 50, 100].includes(percentual_pago)) {
     return res.status(400).json({ error: 'Percentual invalido' });
   }
+
+  // Somente 100% pode ser marcado como pagamento a vista; 0% ou 50% zera a flag
+  const avista = percentual_pago === 100 && pagamento_avista ? 1 : 0;
 
   try {
     const pedidoResult = await db.execute({ sql: 'SELECT * FROM pedidos WHERE id = ?', args: [id] });
     if (pedidoResult.rows.length === 0) return res.status(404).json({ error: 'Pedido nao encontrado' });
 
     const pedido = pedidoResult.rows[0];
-    const valor_pago = pedido.valor_camisa * (percentual_pago / 100);
+
+    // Regra unica de calculo do valor pago:
+    // - a vista (100%): usa o preco_avista da config
+    // - caso contrario: valor da camisa x percentual
+    let valor_pago;
+    if (avista === 1) {
+      const precoAvistaResult = await db.execute({
+        sql: 'SELECT value FROM config WHERE key = ?',
+        args: ['preco_avista']
+      });
+      const precoAvista = precoAvistaResult.rows.length > 0 ? parseFloat(precoAvistaResult.rows[0].value) : 30;
+      valor_pago = precoAvista;
+    } else {
+      valor_pago = pedido.valor_camisa * (percentual_pago / 100);
+    }
 
     await db.execute({
-      sql: 'UPDATE pedidos SET percentual_pago = ?, valor_pago = ? WHERE id = ?',
-      args: [percentual_pago, valor_pago, id]
+      sql: 'UPDATE pedidos SET percentual_pago = ?, pagamento_avista = ?, valor_pago = ? WHERE id = ?',
+      args: [percentual_pago, avista, valor_pago, id]
     });
 
     res.json({ success: true });
@@ -166,23 +190,24 @@ app.put('/api/admin/pedidos/:id/pagamento', authMiddleware, async (req, res) => 
 
 app.get('/api/admin/resumo', authMiddleware, async (req, res) => {
   try {
-    const [total, porTamanho, porGenero, arrecadado, totalCamisas] = await Promise.all([
+    const [total, porTamanho, porGenero, arrecadado, pendente] = await Promise.all([
       db.execute('SELECT COUNT(*) as total FROM pedidos'),
       db.execute('SELECT tamanho, COUNT(*) as total FROM pedidos GROUP BY tamanho'),
       db.execute('SELECT genero, COUNT(*) as total FROM pedidos GROUP BY genero'),
       db.execute('SELECT COALESCE(SUM(valor_pago),0) as total FROM pedidos'),
-      db.execute('SELECT COALESCE(SUM(valor_camisa),0) as total FROM pedidos'),
+      db.execute(`SELECT COALESCE(SUM(CASE WHEN percentual_pago = 100 THEN 0
+             ELSE valor_camisa - valor_pago END),0) as total FROM pedidos`),
     ]);
 
     const valorArrecadado = Number(arrecadado.rows[0].total);
-    const valorTotal = Number(totalCamisas.rows[0].total);
+    const valorPendente = Number(pendente.rows[0].total);
 
     res.json({
       total_pedidos: Number(total.rows[0].total),
       por_tamanho: porTamanho.rows,
       por_genero: porGenero.rows,
       valor_arrecadado: valorArrecadado,
-      valor_pendente: valorTotal - valorArrecadado
+      valor_pendente: valorPendente
     });
   } catch (err) {
     res.status(500).json({ error: 'Erro interno' });
