@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit';
 
-export function gerarPDF(pedidos, preco, stream) {
+export function gerarPDF(pedidos, preco, precoAvista, stream) {
   const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true });
   doc.pipe(stream);
 
@@ -28,11 +28,24 @@ export function gerarPDF(pedidos, preco, stream) {
     .text('Gerado em: ' + dataStr, 40, 68, { align: 'center' });
 
   let y = 110;
+  let emLista = false;
+
+  function imprimirCabecalhoColunas() {
+    doc.rect(40, y, doc.page.width - 80, 16).fill(COLORS.accent);
+    doc.fontSize(8).fillColor('#FFFFFF');
+    doc.text('G\u00EAnero', colX[0] + 4, y + 4, { width: colW[0] - 8 });
+    doc.text('Tamanho', colX[1] + 4, y + 4, { width: colW[1] - 8 });
+    doc.text('Valor', colX[2] + 4, y + 4, { width: colW[2] - 8 });
+    doc.text('Status', colX[3] + 4, y + 4, { width: colW[3] - 8 });
+    doc.text('Pago', colX[4] + 4, y + 4, { width: colW[4] - 8 });
+    y += 16;
+  }
 
   function checkPage(needed = 40) {
     if (y > doc.page.height - needed) {
       doc.addPage();
       y = 40;
+      if (emLista) imprimirCabecalhoColunas();
     }
   }
 
@@ -44,7 +57,6 @@ export function gerarPDF(pedidos, preco, stream) {
 
   const colX = [60, 200, 280, 340, 420];
   const colW = [135, 75, 55, 75, 100];
-  const subHeaders = ['G\u00EAnero', 'Tamanho', 'Valor', 'Pagamento'];
 
   let pessoaIdx = 0;
   const totalPessoas = grupos.size;
@@ -52,6 +64,9 @@ export function gerarPDF(pedidos, preco, stream) {
   doc.fontSize(10).fillColor(COLORS.text)
     .text(`Total: ${totalPessoas} pessoa${totalPessoas !== 1 ? 's' : ''} - ${pedidos.length} camisa${pedidos.length !== 1 ? 's' : ''}`, 40, y);
   y += 20;
+
+  emLista = true;
+  imprimirCabecalhoColunas();
 
   for (const [nome, camisas] of grupos) {
     checkPage(60);
@@ -72,10 +87,13 @@ export function gerarPDF(pedidos, preco, stream) {
 
       doc.text(p.genero, colX[0] + 4, y + 5, { width: colW[0] - 8 });
       doc.text(p.tamanho, colX[1] + 4, y + 5, { width: colW[1] - 8 });
-      doc.text('R$ ' + Number(p.valor_camisa).toFixed(2), colX[2] + 4, y + 5, { width: colW[2] - 8 });
 
       const pct = Number(p.percentual_pago);
       const avista = Number(p.pagamento_avista) === 1;
+      // Pedido pago a vista: exibe o preco a vista da config para nao divergir da coluna Pago
+      const valorExibido = avista ? precoAvista : Number(p.valor_camisa);
+      doc.text('R$ ' + valorExibido.toFixed(2), colX[2] + 4, y + 5, { width: colW[2] - 8 });
+
       let statusText, statusColor;
       if (pct === 100) { statusText = avista ? '100% Pago (à vista)' : '100% Pago'; statusColor = COLORS.green; }
       else if (pct === 50) { statusText = '50% Pago'; statusColor = COLORS.yellow; }
@@ -94,6 +112,7 @@ export function gerarPDF(pedidos, preco, stream) {
     pessoaIdx++;
   }
 
+  emLista = false;
   y += 15;
   checkPage(120);
 
@@ -140,7 +159,8 @@ export function gerarPDF(pedidos, preco, stream) {
   // Pendente por pedido: 0 se 100% pago (a vista ou parcelado); senao valor_camisa - valor_pago
   const totalPendente = pedidos.reduce((s, p) =>
     s + (Number(p.percentual_pago) === 100 ? 0 : Number(p.valor_camisa) - Number(p.valor_pago)), 0);
-  const totalGeral = pedidos.reduce((s, p) => s + Number(p.valor_camisa), 0);
+  // Geral = arrecadado + pendente (nao soma valor_camisa cheio, senao diverge com descontos a vista)
+  const totalGeral = totalArrecadado + totalPendente;
 
   doc.fontSize(10).fillColor(COLORS.green)
     .text('Valor total arrecadado: R$ ' + totalArrecadado.toFixed(2), 50, y);

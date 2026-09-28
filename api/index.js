@@ -227,17 +227,19 @@ app.delete('/api/admin/pedidos/:id', authMiddleware, async (req, res) => {
 
 app.get('/api/admin/pedidos/pdf', authMiddleware, async (req, res) => {
   try {
-    const [pedidosResult, precoResult] = await Promise.all([
+    const [pedidosResult, precoResult, precoAvistaResult] = await Promise.all([
       db.execute('SELECT * FROM pedidos ORDER BY nome ASC, id ASC'),
-      db.execute({ sql: 'SELECT value FROM config WHERE key = ?', args: ['preco_camisa'] })
+      db.execute({ sql: 'SELECT value FROM config WHERE key = ?', args: ['preco_camisa'] }),
+      db.execute({ sql: 'SELECT value FROM config WHERE key = ?', args: ['preco_avista'] })
     ]);
 
     const preco = precoResult.rows.length > 0 ? parseFloat(precoResult.rows[0].value) : 35;
+    const precoAvista = precoAvistaResult.rows.length > 0 ? parseFloat(precoAvistaResult.rows[0].value) : 30;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename=pedidos-fest-acai.pdf');
 
-    gerarPDF(pedidosResult.rows, preco, res);
+    gerarPDF(pedidosResult.rows, preco, precoAvista, res);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao gerar PDF' });
   }
