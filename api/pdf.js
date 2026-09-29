@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { TODOS_TAMANHOS } from '../shared/tamanhos.js';
 
 export function gerarPDF(pedidos, preco, precoAvista, stream) {
   const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true });
@@ -120,7 +121,7 @@ export function gerarPDF(pedidos, preco, precoAvista, stream) {
   doc.fontSize(12).fillColor(COLORS.gold).text('Resumo', 50, y + 6);
   y += 30;
 
-  const tamanhos = ['PP', 'P', 'M', 'G', 'GG'];
+  const tamanhos = TODOS_TAMANHOS;
 
   doc.fontSize(10).fillColor(COLORS.text);
   doc.text(`Total: ${totalPessoas} pessoa${totalPessoas !== 1 ? 's' : ''} / ${pedidos.length} camisa${pedidos.length !== 1 ? 's' : ''}`, 50, y);

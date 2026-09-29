@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { getPreco, enviarPedidos, consultarPedidos, verificarNome, buscarNomes } from '../api';
+import { TAMANHOS_ADULTO, TAMANHOS_INFANTIL, ehInfantil } from '../../../shared/tamanhos.js';
 
 // Datas do evento — editar aqui quando mudar
 const DATA_INICIO_PEDIDOS = '27/09';
@@ -18,6 +19,7 @@ function formatarPreco(valor) {
 export default function PublicPage() {
   const [preco, setPreco] = useState(PRECO_PADRAO_PARCELADO);
   const [precoAvista, setPrecoAvista] = useState(PRECO_PADRAO_AVISTA);
+  const [precoInfantil, setPrecoInfantil] = useState(22);
   const [nome, setNome] = useState('');
   const [itens, setItens] = useState([{ genero: '', tamanho: '' }]);
   const [enviado, setEnviado] = useState(false);
@@ -39,6 +41,7 @@ export default function PublicPage() {
     getPreco().then(data => {
       if (data && data.preco != null) setPreco(data.preco);
       if (data && data.preco_avista != null) setPrecoAvista(data.preco_avista);
+      if (data && data.preco_infantil != null) setPrecoInfantil(data.preco_infantil);
     }).catch(() => {});
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -113,6 +116,11 @@ export default function PublicPage() {
     setErro('');
   }
 
+  // Valor do item: infantil usa preco_infantil da config; adulto usa o preco parcelado
+  function valorDoItem(item) {
+    return item.tamanho && ehInfantil(item.tamanho) ? precoInfantil : preco;
+  }
+
   function handleNomeConsultaChange(val) {
     const v = val.toUpperCase();
     setNomeConsulta(v);
@@ -185,9 +193,24 @@ export default function PublicPage() {
               }
             </p>
             <div className="text-ouro/70 text-sm mb-6 space-y-1">
-              <p>À vista: R$ {formatarPreco(precoAvista)} × {itens.length} = <span className="text-ouro-dark font-bold">R$ {formatarPreco(precoAvista * itens.length)}</span></p>
-              <p>Parcelado: R$ {formatarPreco((preco * itens.length) / 2)} agora (50%) + R$ {formatarPreco((preco * itens.length) / 2)} no dia {DATA_SEGUNDA_PARCELA} (50%)</p>
-              <p className="text-ouro/50 text-xs">= total de R$ {formatarPreco(preco * itens.length)} (R$ {formatarPreco(preco)} × {itens.length})</p>
+              {itens.map((item, idx) => (
+                <p key={idx}>
+                  Camisa {itens.length > 1 ? idx + 1 : 1} ({item.tamanho}): R$ {formatarPreco(valorDoItem(item))}
+                </p>
+              ))}
+              <p className="text-ouro-dark font-bold">
+                Total geral: R$ {formatarPreco(itens.reduce((s, item) => s + valorDoItem(item), 0))}
+              </p>
+              {itens.some(i => i.tamanho && !ehInfantil(i.tamanho)) && (
+                <p className="text-ouro/50 text-xs">
+                  Adulto: à vista R$ {formatarPreco(precoAvista)} por camisa, ou parcelado 50% agora + 50% no dia {DATA_SEGUNDA_PARCELA} (R$ {formatarPreco(preco)}).
+                </p>
+              )}
+              {itens.some(i => i.tamanho && ehInfantil(i.tamanho)) && (
+                <p className="text-ouro/50 text-xs">
+                  Infantil: valor único de R$ {formatarPreco(precoInfantil)}, sem desconto à vista.
+                </p>
+              )}
             </div>
             {/* Chave Pix */}
             <div className="mb-6">
@@ -393,7 +416,18 @@ export default function PublicPage() {
                   <div>
                     <label className="block text-ouro/60 text-xs font-medium mb-2">Tamanho</label>
                     <div className="flex gap-2">
-                      {['PP', 'P', 'M', 'G', 'GG'].map(t => (
+                      {TAMANHOS_ADULTO.map(t => (
+                        <button key={t} type="button" onClick={() => updateItem(idx, 'tamanho', t)}
+                          className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                            item.tamanho === t ? 'bg-ouro-dark text-vinho shadow-lg shadow-ouro-dark/30'
+                              : 'bg-[#2A0A16] text-ouro/50 border border-ouro/10 hover:border-ouro/25'}`}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-ouro/60 text-xs font-medium mt-3 mb-2">Infantil</p>
+                    <div className="flex gap-2">
+                      {TAMANHOS_INFANTIL.map(t => (
                         <button key={t} type="button" onClick={() => updateItem(idx, 'tamanho', t)}
                           className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${
                             item.tamanho === t ? 'bg-ouro-dark text-vinho shadow-lg shadow-ouro-dark/30'
@@ -411,8 +445,15 @@ export default function PublicPage() {
                 + Adicionar outro tamanho/pedido
               </button>
 
-              <div className="text-center text-ouro/70 text-sm py-1">
-                Total: <span className="text-ouro-dark font-bold text-base">R$ {(preco * itens.length).toFixed(2).replace('.', ',')}</span>
+              <div className="text-center text-ouro/70 text-sm py-1 space-y-1">
+                {itens.map((item, idx) => (
+                  <p key={idx}>
+                    Camisa {itens.length > 1 ? idx + 1 : 1} ({item.tamanho || '?'}): R$ {formatarPreco(valorDoItem(item))}
+                  </p>
+                ))}
+                <p>
+                  Total: <span className="text-ouro-dark font-bold text-base">R$ {formatarPreco(itens.reduce((s, item) => s + valorDoItem(item), 0))}</span>
+                </p>
               </div>
 
               {erro && (

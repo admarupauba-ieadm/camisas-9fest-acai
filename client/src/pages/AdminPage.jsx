@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPedidos, getResumo, atualizarPagamento, deletarPedido, baixarPDF, getPreco } from '../api';
 import { AcaiBerry } from '../components/Decorations';
+import { ehInfantil, TAMANHOS_ADULTO, TAMANHOS_INFANTIL } from '../../../shared/tamanhos.js';
 
 function normalizarNome(nome) {
   return nome.trim().toLowerCase();
@@ -38,6 +39,7 @@ export default function AdminPage() {
   const [baixandoPdf, setBaixandoPdf] = useState(false);
   const [preco, setPreco] = useState(35);
   const [precoAvista, setPrecoAvista] = useState(30);
+  const [precoInfantil, setPrecoInfantil] = useState(22);
   // Grupos abertos, guardados pela chave do nome normalizado (sobrevive a recargas de dados)
   const [expandidos, setExpandidos] = useState(() => new Set());
   const navigate = useNavigate();
@@ -55,6 +57,7 @@ export default function AdminPage() {
     getPreco().then(data => {
       if (data && data.preco != null) setPreco(data.preco);
       if (data && data.preco_avista != null) setPrecoAvista(data.preco_avista);
+      if (data && data.preco_infantil != null) setPrecoInfantil(data.preco_infantil);
     }).catch(() => {});
   }, []);
 
@@ -179,7 +182,7 @@ export default function AdminPage() {
                         <td className="py-3 px-2 text-ouro align-top">
                           <span className="font-semibold">{grupo.nome}</span>
                         </td>
-                        <PedidoCelulas p={p} preco={preco} precoAvista={precoAvista}
+                        <PedidoCelulas p={p} preco={preco} precoAvista={precoAvista} precoInfantil={precoInfantil}
                           onPagamento={handlePagamento} onDelete={handleDelete} />
                       </tr>
                     );
@@ -218,7 +221,7 @@ export default function AdminPage() {
                       {aberto && grupo.camisas.map(p => (
                         <tr key={p.id} className="border-b border-ouro/5">
                           <td className="w-4 border-l-4 border-acai/70 bg-acai/5"></td>
-                          <PedidoCelulas p={p} preco={preco} precoAvista={precoAvista}
+                          <PedidoCelulas p={p} preco={preco} precoAvista={precoAvista} precoInfantil={precoInfantil}
                             onPagamento={handlePagamento} onDelete={handleDelete} />
                         </tr>
                       ))}
@@ -239,7 +242,7 @@ export default function AdminPage() {
                       <p className="text-ouro font-bold">{grupo.nome}</p>
                       <p className="text-ouro/40 text-xs">1 camisa</p>
                     </div>
-                    <PedidoCardMobile p={p} preco={preco} precoAvista={precoAvista}
+                    <PedidoCardMobile p={p} preco={preco} precoAvista={precoAvista} precoInfantil={precoInfantil}
                       onPagamento={handlePagamento} onDelete={handleDelete} />
                   </div>
                 );
@@ -264,7 +267,7 @@ export default function AdminPage() {
                     <StatusDot status={resumo.status} />
                   </button>
                   {aberto && grupo.camisas.map(p => (
-                    <PedidoCardMobile key={p.id} p={p} preco={preco} precoAvista={precoAvista}
+                    <PedidoCardMobile key={p.id} p={p} preco={preco} precoAvista={precoAvista} precoInfantil={precoInfantil}
                       onPagamento={handlePagamento} onDelete={handleDelete} indentado />
                   ))}
                 </div>
@@ -309,11 +312,17 @@ function PaymentBar({ percentual, avista }) {
   );
 }
 
-function PaymentSelect({ pedido, preco, precoAvista, onChange }) {
+function PaymentSelect({ pedido, preco, precoAvista, precoInfantil, onChange }) {
   const fmt = v => v.toFixed(2).replace('.', ',');
   const avistaPedido = Number(pedido.pagamento_avista) === 1;
+  const infantil = ehInfantil(pedido.tamanho);
 
-  const opcoes = [
+  // Infantil: valor unico, sem opcao a vista. Adulto: 4 opcoes.
+  const opcoes = infantil ? [
+    { val: 0, avista: false, label: 'Pendente (0%)', color: 'bg-red-500/20 text-red-400 border-red-500/30', active: 'bg-red-500 text-white border-red-500' },
+    { val: 50, avista: false, label: `50% pago (R$ ${fmt(precoInfantil / 2)})`, color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', active: 'bg-yellow-500 text-white border-yellow-500' },
+    { val: 100, avista: false, label: `100% pago (R$ ${fmt(precoInfantil)})`, color: 'bg-green-500/20 text-green-400 border-green-500/30', active: 'bg-green-500 text-white border-green-500' },
+  ] : [
     { val: 0, avista: false, label: 'Pendente (0%)', color: 'bg-red-500/20 text-red-400 border-red-500/30', active: 'bg-red-500 text-white border-red-500' },
     { val: 50, avista: false, label: `50% pago (R$ ${fmt(preco / 2)})`, color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', active: 'bg-yellow-500 text-white border-yellow-500' },
     { val: 100, avista: false, label: `100% pago – parcelado (R$ ${fmt(preco)})`, color: 'bg-green-500/20 text-green-400 border-green-500/30', active: 'bg-green-500 text-white border-green-500' },
@@ -353,7 +362,7 @@ function StatusDot({ status }) {
 }
 
 // Celulas compartilhadas da tabela desktop (Genero ate o botao de excluir)
-function PedidoCelulas({ p, preco, precoAvista, onPagamento, onDelete }) {
+function PedidoCelulas({ p, preco, precoAvista, precoInfantil, onPagamento, onDelete }) {
   return (
     <>
       <td className="py-3 px-2 text-ouro/80">{p.genero}</td>
@@ -362,7 +371,7 @@ function PedidoCelulas({ p, preco, precoAvista, onPagamento, onDelete }) {
       </td>
       <td className="py-3 px-2 text-ouro/80">R$ {Number(p.valor_camisa).toFixed(2)}</td>
       <td className="py-3 px-2"><PaymentBar percentual={Number(p.percentual_pago)} avista={Number(p.pagamento_avista) === 1} /></td>
-      <td className="py-3 px-2 min-w-[320px]"><PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} onChange={onPagamento} /></td>
+      <td className="py-3 px-2 min-w-[320px]"><PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} precoInfantil={precoInfantil} onChange={onPagamento} /></td>
       <td className="py-3 px-2 text-ouro/80 font-medium">R$ {Number(p.valor_pago).toFixed(2)}</td>
       <td className="py-3 px-2 text-right">
         <button onClick={() => onDelete(p.id, p.nome)}
@@ -377,7 +386,7 @@ function PedidoCelulas({ p, preco, precoAvista, onPagamento, onDelete }) {
 }
 
 // Sub-card de pedido compartilhado na visualizacao mobile
-function PedidoCardMobile({ p, preco, precoAvista, onPagamento, onDelete, indentado = false }) {
+function PedidoCardMobile({ p, preco, precoAvista, precoInfantil, onPagamento, onDelete, indentado = false }) {
   return (
     <div className={`bg-[#1A0610]/40 rounded-lg p-3 space-y-2 ${indentado ? 'border-l-4 border-acai/70' : ''}`}>
       <div className="flex items-center justify-between">
@@ -394,7 +403,7 @@ function PedidoCardMobile({ p, preco, precoAvista, onPagamento, onDelete, indent
       </div>
       <PaymentBar percentual={Number(p.percentual_pago)} avista={Number(p.pagamento_avista) === 1} />
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} onChange={onPagamento} />
+        <PaymentSelect pedido={p} preco={preco} precoAvista={precoAvista} precoInfantil={precoInfantil} onChange={onPagamento} />
         <span className="text-ouro/80 text-xs font-medium">R$ {Number(p.valor_pago).toFixed(2)} / R$ {Number(p.valor_camisa).toFixed(2)}</span>
       </div>
     </div>
@@ -417,7 +426,7 @@ function ResumoCards({ resumo }) {
       <div className="bg-vinho-light/40 border border-ouro/15 rounded-xl p-3 col-span-2 sm:col-span-3 lg:col-span-1">
         <p className="text-ouro/50 text-[10px] font-medium uppercase mb-1">Tamanhos</p>
         <div className="flex flex-wrap gap-1">
-          {['PP', 'P', 'M', 'G', 'GG'].map(t => (
+          {[...TAMANHOS_ADULTO, ...TAMANHOS_INFANTIL].map(t => (
             <span key={t} className="text-[10px] bg-acai/20 text-acai-light px-1.5 py-0.5 rounded font-medium">
               {t}: {tamanhoMap[t] || 0}
             </span>

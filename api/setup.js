@@ -13,7 +13,7 @@ async function setup() {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
     genero TEXT NOT NULL CHECK(genero IN ('Masculino','Feminino')),
-    tamanho TEXT NOT NULL CHECK(tamanho IN ('PP','P','M','G','GG')),
+    tamanho TEXT NOT NULL CHECK(tamanho IN ('PP','P','M','G','GG','2','4','6','8','10')),
     valor_camisa REAL NOT NULL DEFAULT 35.00,
     percentual_pago INTEGER NOT NULL DEFAULT 0 CHECK(percentual_pago IN (0,50,100)),
     valor_pago REAL NOT NULL DEFAULT 0.00,
@@ -76,6 +76,21 @@ async function setup() {
     console.log('Preco a vista padrao criado (R$ 30,00).');
   } else {
     console.log('Preco a vista ja existe: R$ ' + existingPriceAvista.rows[0].value);
+  }
+
+  const existingPriceInfantil = await db.execute({
+    sql: 'SELECT value FROM config WHERE key = ?',
+    args: ['preco_infantil']
+  });
+
+  if (existingPriceInfantil.rows.length === 0) {
+    await db.execute({
+      sql: 'INSERT INTO config (key, value) VALUES (?, ?)',
+      args: ['preco_infantil', '22.00']
+    });
+    console.log('Preco infantil padrao criado (R$ 22,00).');
+  } else {
+    console.log('Preco infantil ja existe: R$ ' + existingPriceInfantil.rows[0].value);
   }
 
   console.log('Setup concluido com sucesso!');

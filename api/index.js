@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db from './database.js';
 import { gerarPDF } from './pdf.js';
+import { TODOS_TAMANHOS, ehInfantil } from '../shared/tamanhos.js';
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'fest-acai-secret-2026-marupauba';
@@ -24,7 +25,7 @@ function authMiddleware(req, res, next) {
 
 app.get('/api/preco', async (req, res) => {
   try {
-    const [result, resultAvista] = await Promise.all([
+    const [result, resultAvista, resultInfantil] = await Promise.all([
       db.execute({
         sql: 'SELECT value FROM config WHERE key = ?',
         args: ['preco_camisa']
@@ -32,11 +33,16 @@ app.get('/api/preco', async (req, res) => {
       db.execute({
         sql: 'SELECT value FROM config WHERE key = ?',
         args: ['preco_avista']
+      }),
+      db.execute({
+        sql: 'SELECT value FROM config WHERE key = ?',
+        args: ['preco_infantil']
       })
     ]);
     const preco = result.rows.length > 0 ? parseFloat(result.rows[0].value) : 35;
     const precoAvista = resultAvista.rows.length > 0 ? parseFloat(resultAvista.rows[0].value) : 30;
-    res.json({ preco, preco_avista: precoAvista });
+    const precoInfantil = resultInfantil.rows.length > 0 ? parseFloat(resultInfantil.rows[0].value) : 22;
+    res.json({ preco, preco_avista: precoAvista, preco_infantil: precoInfantil });
   } catch (err) {
     res.status(500).json({ error: 'Erro interno' });
   }
@@ -49,21 +55,33 @@ app.post('/api/pedidos', async (req, res) => {
   }
 
   try {
-    const precoResult = await db.execute({
-      sql: 'SELECT value FROM config WHERE key = ?',
-      args: ['preco_camisa']
-    });
+    const [precoResult, precoInfantilResult] = await Promise.all([
+      db.execute({
+        sql: 'SELECT value FROM config WHERE key = ?',
+        args: ['preco_camisa']
+      }),
+      db.execute({
+        sql: 'SELECT value FROM config WHERE key = ?',
+        args: ['preco_infantil']
+      })
+    ]);
     const preco = precoResult.rows.length > 0 ? parseFloat(precoResult.rows[0].value) : 35;
+    const precoInfantil = precoInfantilResult.rows.length > 0 ? parseFloat(precoInfantilResult.rows[0].value) : 22;
 
     const statements = [];
     for (const item of pedidos) {
       if (!item.nome || !item.genero || !item.tamanho) {
         return res.status(400).json({ error: 'Campos obrigatorios faltando' });
       }
+      if (!TODOS_TAMANHOS.includes(item.tamanho)) {
+        return res.status(400).json({ error: 'Tamanho invalido' });
+      }
+      // Camisa infantil tem valor unico (preco_infantil); adulto usa o preco parcelado
+      const valorItem = ehInfantil(item.tamanho) ? precoInfantil : preco;
       statements.push({
         sql: `INSERT INTO pedidos (nome, genero, tamanho, valor_camisa, percentual_pago, valor_pago)
               VALUES (?, ?, ?, ?, 0, 0.00)`,
-        args: [item.nome.trim().toUpperCase(), item.genero, item.tamanho, preco]
+        args: [item.nome.trim().toUpperCase(), item.genero, item.tamanho, valorItem]
       });
     }
 
@@ -153,18 +171,19 @@ app.put('/api/admin/pedidos/:id/pagamento', authMiddleware, async (req, res) => 
     return res.status(400).json({ error: 'Percentual invalido' });
   }
 
-  // Somente 100% pode ser marcado como pagamento a vista; 0% ou 50% zera a flag
-  const avista = percentual_pago === 100 && pagamento_avista ? 1 : 0;
-
   try {
     const pedidoResult = await db.execute({ sql: 'SELECT * FROM pedidos WHERE id = ?', args: [id] });
     if (pedidoResult.rows.length === 0) return res.status(404).json({ error: 'Pedido nao encontrado' });
 
     const pedido = pedidoResult.rows[0];
+    const infantil = ehInfantil(pedido.tamanho);
 
     // Regra unica de calculo do valor pago:
-    // - a vista (100%): usa o preco_avista da config
-    // - caso contrario: valor da camisa x percentual
+    // - infantil: nunca tem desconto a vista (flag sempre 0); valor_pago = valor_camisa (= preco_infantil gravado) x percentual
+    // - adulto a vista (100%): usa o preco_avista da config
+    // - adulto caso contrario: valor da camisa x percentual
+    const avista = !infantil && percentual_pago === 100 && pagamento_avista ? 1 : 0;
+
     let valor_pago;
     if (avista === 1) {
       const precoAvistaResult = await db.execute({
