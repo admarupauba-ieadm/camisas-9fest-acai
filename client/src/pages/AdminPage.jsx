@@ -175,19 +175,6 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {grupos.map(grupo => {
-                  if (grupo.camisas.length === 1) {
-                    const p = grupo.camisas[0];
-                    return (
-                      <tr key={p.id} className="hover:bg-ouro/5 transition-colors border-b-2 border-ouro/15">
-                        <td className="py-3 px-2 text-ouro align-top">
-                          <span className="font-semibold">{grupo.nome}</span>
-                        </td>
-                        <PedidoCelulas p={p} preco={preco} precoAvista={precoAvista} precoInfantil={precoInfantil}
-                          onPagamento={handlePagamento} onDelete={handleDelete} />
-                      </tr>
-                    );
-                  }
-
                   const resumo = resumoGrupo(grupo.camisas, precoAvista);
                   const aberto = expandidos.has(grupo.chave);
 
@@ -204,7 +191,7 @@ export default function AdminPage() {
                             <Chevron aberto={aberto} />
                             <span className="font-semibold text-ouro">{grupo.nome}</span>
                             <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-0.5 rounded">
-                              {grupo.camisas.length} camisas
+                              {grupo.camisas.length} camisa{grupo.camisas.length > 1 ? 's' : ''}
                             </span>
                           </div>
                         </td>
@@ -234,20 +221,6 @@ export default function AdminPage() {
 
           <div className="lg:hidden space-y-4">
             {grupos.map(grupo => {
-              if (grupo.camisas.length === 1) {
-                const p = grupo.camisas[0];
-                return (
-                  <div key={grupo.chave} className="bg-vinho/40 border border-ouro/10 rounded-xl p-4 space-y-3">
-                    <div>
-                      <p className="text-ouro font-bold">{grupo.nome}</p>
-                      <p className="text-ouro/40 text-xs">1 camisa</p>
-                    </div>
-                    <PedidoCardMobile p={p} preco={preco} precoAvista={precoAvista} precoInfantil={precoInfantil}
-                      onPagamento={handlePagamento} onDelete={handleDelete} />
-                  </div>
-                );
-              }
-
               const resumo = resumoGrupo(grupo.camisas, precoAvista);
               const aberto = expandidos.has(grupo.chave);
 
@@ -258,7 +231,7 @@ export default function AdminPage() {
                     <Chevron aberto={aberto} />
                     <p className="text-ouro font-bold">{grupo.nome}</p>
                     <span className="bg-acai/30 text-acai-light text-xs font-bold px-2 py-0.5 rounded">
-                      {grupo.camisas.length} camisas
+                      {grupo.camisas.length} camisa{grupo.camisas.length > 1 ? 's' : ''}
                     </span>
                     <span className="text-ouro/50 text-xs">{resumo.tamanhos}</span>
                     <span className="text-ouro/70 text-xs">
