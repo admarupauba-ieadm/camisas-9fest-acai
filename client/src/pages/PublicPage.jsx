@@ -348,6 +348,13 @@ export default function PublicPage() {
           <p className="text-ouro/60 text-xs mt-1">Toque em "Consultar meu pedido" e digite seu nome. O status do pagamento só é atualizado depois que o administrador confirmar o comprovante enviado no grupo.</p>
         </div>
       </li>
+      <li className="flex gap-3 items-start">
+        <span className="w-7 h-7 rounded-full bg-ouro-dark text-vinho font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">6</span>
+        <div>
+          <p className="text-ouro font-bold text-sm">Camisa infantil</p>
+          <p className="text-ouro/60 text-xs mt-1">Para criança, escolha o tamanho na linha Infantil ({TAMANHOS_INFANTIL.join(', ')}), logo abaixo dos tamanhos PP a GG. A camisa infantil custa R$ {formatarPreco(precoInfantil)}. Para o tamanho infantil não há opção de pagamento à vista com desconto: o valor é sempre R$ {formatarPreco(precoInfantil)}.</p>
+        </div>
+      </li>
     </ol>
   </div>
 </section>
